@@ -1,10 +1,16 @@
 import { useMyPresence, useOthers } from '@/liveblocks.config';
-import React, { useCallback } from 'react';
+import { CursorMode } from '@/types/type';
+import React, { useCallback, useState } from 'react';
+import CursorChat from './cursor/CursorChat';
 import LiveCursors from './cursor/LiveCursors';
 
 const Live = () => {
   const others = useOthers();
   const [{ cursor }, updateMyPresence] = useMyPresence() as any;
+
+  const [cursorState, setCursorState] = useState({
+    mode: CursorMode.Hidden,
+  });
 
   const handlePointerMove = useCallback((event: React.PointerEvent) => {
     event.preventDefault();
@@ -16,7 +22,7 @@ const Live = () => {
   }, []);
 
   const handlePointerLeave = useCallback((event: React.PointerEvent) => {
-    event.preventDefault();
+    setcursorState({ mode: CursorMode.Hidden });
 
     updateMyPresence({ cursor: null, message: null });
   }, []);
@@ -36,6 +42,16 @@ const Live = () => {
       className='h-[100vh] w-full flex justify-center items-center text-center'
     >
       <h1 className='text-2xl text-white'>Maxwell Live Drawing Platform</h1>
+
+      {cursor && (
+        <CursorChat
+          cursor={cursor}
+          cursorState={cursorState}
+          setCursorState={setCursorState}
+          updateMyPresence={updateMyPresence}
+        />
+      )}
+
       <LiveCursors others={others} />
     </div>
   );

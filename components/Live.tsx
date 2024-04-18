@@ -1,8 +1,15 @@
-import { useMyPresence, useOthers } from '@/liveblocks.config';
-import { CursorMode, CursorState, Reaction } from '@/types/type';
+import useInterval from '@/hooks/useInterval';
+import {
+  useBroadcastEvent,
+  useEventListener,
+  useMyPresence,
+  useOthers,
+} from '@/liveblocks.config';
+import { CursorMode, CursorState, Reaction, ReactionEvent } from '@/types/type';
 import React, { useCallback, useEffect, useState } from 'react';
 import CursorChat from './cursor/CursorChat';
 import LiveCursors from './cursor/LiveCursors';
+import FlyingReaction from './reaction/FlyingReaction';
 import ReactionSelector from './reaction/ReactionButton';
 
 const Live = () => {
@@ -12,8 +19,46 @@ const Live = () => {
   const [cursorState, setCursorState] = useState<CursorState>({
     mode: CursorMode.Hidden,
   });
+  const [reaction, setReaction] = useState<Reaction[]>([]);
 
-  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const broadcast = useBroadcastEvent();
+
+  useInterval(() => {
+    if (
+      cursorState.mode === CursorMode.Reaction &&
+      cursorState.isPressed &&
+      cursor
+    ) {
+      setReaction((reactions) =>
+        reactions.concat([
+          {
+            point: { x: cursor.x, y: cursor.y },
+            value: cursorState.reaction,
+            timestamp: Date.now(),
+          },
+        ])
+      );
+      broadcast({
+        x: cursor.x,
+        y: cursor.y,
+        value: cursorState.reaction,
+      });
+    }
+  }, 100);
+
+  useEventListener((eventData) => {
+    const event = eventData.event as ReactionEvent;
+
+    setReaction((reactions) =>
+      reactions.concat([
+        {
+          point: { x: event.x, y: event.y },
+          value: event.value,
+          timestamp: Date.now(),
+        },
+      ])
+    );
+  });
 
   const handlePointerMove = useCallback((event: React.PointerEvent) => {
     event.preventDefault();
@@ -92,6 +137,14 @@ const Live = () => {
     };
   }, [updateMyPresence]);
 
+  const setReactions = useCallback((reaction: string) => {
+    setCursorState({
+      mode: CursorMode.Reaction,
+      reaction,
+      isPressed: false,
+    });
+  }, []);
+
   return (
     <div
       onPointerMove={handlePointerMove}
@@ -101,6 +154,16 @@ const Live = () => {
       className='h-[100vh] w-full flex justify-center items-center text-center'
     >
       <h1 className='text-2xl text-white'>Maxwell Live Drawing Platform</h1>
+
+      {reaction.map((r) => (
+        <FlyingReaction
+          key={r.timestamp.toString()}
+          x={r.point.x}
+          y={r.point.y}
+          timestamp={r.timestamp}
+          value={r.value}
+        />
+      ))}
 
       {cursor && (
         <CursorChat
@@ -112,15 +175,7 @@ const Live = () => {
       )}
 
       {cursorState.mode === CursorMode.ReactionSelector && (
-        <ReactionSelector
-          setReaction={(reaction) => {
-            setCursorState({
-              mode: CursorMode.Reaction,
-              reaction,
-              isPressed: false,
-            });
-          }}
-        />
+        <ReactionSelector setReaction={setReactions} />
       )}
 
       <LiveCursors others={others} />
